@@ -10,6 +10,14 @@
 #define HOST "127.0.0.1"
 #define PORT 10000
 
+#define FRM_LOAD_SZ 1394
+
+typedef struct {
+    char load[FRM_LOAD_SZ];
+    unsigned int id;
+    unsigned short int crc;
+} frame;
+
 /* Returns speed parameter */
 int get_speed(char* param) {
     int p;
@@ -38,7 +46,56 @@ double get_corrupt(char *param) {
     return p;
 }
 
-/* Transmit te file */
+/* Transmit the file Go-Back-N */
+void transmit(char* filename, int speed, int delay, double loss,
+            double corrupt) {
+
+    const int window_sz = (int) ( (double) ( ( (double)(speed * delay) / 8) \
+                        * (1 << 20)  ) / (1000 * 1400) + 1 );
+
+
+    fprintf(stderr, "speed [%d], delay [%d]\n", speed, delay);
+    fprintf(stderr, "window_sz: %d\n", window_sz);
+
+    struct stat buf;
+    if ( stat(filename, &buf) < 0 ) {
+        perror("Stat failed");
+        return;
+    }
+
+    int file = open(filename, O_RDONLY);
+
+    if (file < 0) {
+        perror("Couldn't open file");
+        return;
+    }
+
+    msg t;
+    int not_sent = 1;
+    msg *ok = NULL;
+
+    t.type = 1;
+    sprintf(t.payload, "%s\n%d\n", filename, (int) buf.st_size);
+    t.len = strlen(t.payload) + 1;
+
+    /* Make sure the first frame containing filename and its size is recieved */
+    while (not_sent) {
+        send_message(&t);
+        ok = receive_message();
+        if (ok->type == 1000)
+            not_sent = 0;
+        fprintf(stderr, "ok-type: [%d]\n", ok->type);
+    }
+
+
+    msg *window_buff = (msg *) calloc(window_sz, sizeof(msg));
+
+
+    close(file);
+    free(window_buff);
+}
+
+/* Transmit te file start-stop */
 void send_file(char* filename) {
     msg t;
 
@@ -101,6 +158,9 @@ int main(int argc, char** argv) {
     printf("Loss: %lf\n", get_loss(argv[3]));
     printf("Corrupt: %lf\n", get_corrupt(argv[4]));
 
-    send_file(argv[5]);
+    transmit(argv[5], get_speed(argv[1]), get_delay(argv[2]), get_loss(argv[3]),
+            get_corrupt(argv[4]) );
+
+    //send_file(argv[5]);
     return 0;
 }

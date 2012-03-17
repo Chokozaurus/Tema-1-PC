@@ -8,6 +8,14 @@
 #define HOST "127.0.0.1"
 #define PORT 10001
 
+#define FRM_LOAD_SZ 1394
+
+typedef struct {
+    char load[FRM_LOAD_SZ];
+    unsigned int id;
+    unsigned short int crc;
+} frame;
+
 int main(int argc, char** argv) {
     msg *r,t;
     init(HOST, PORT);
@@ -28,6 +36,10 @@ int main(int argc, char** argv) {
         printf("Expecting filename and size message\n");
         return -1;
     }
+
+    msg ok;
+    ok.type = 1000;
+    send_message(&ok);
 
     for (i = 0; i < r->len; i++){
         if (crt >= 1400){
