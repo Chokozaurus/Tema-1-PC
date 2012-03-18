@@ -23,17 +23,17 @@ typedef union _charge {
     struct {
         int type;
         int len;
-        char payload[1400];
+        char payload[PAYLOAD_SZ];   //1400
     }msg;
     struct {
         int type;
         int len;
         unsigned int id;
-        char load[PCK_LOAD_SZ];
+        char load[PCK_LOAD_SZ];     //1394
         word crc;
     }pack;
     struct {
-        char payload[1406];
+        char payload[CRC_LOAD_SZ];  //1406
         word crc;
     }crc;
 }charge;
@@ -63,54 +63,71 @@ int main(int argc, char** argv) {
         perror("Receive message");
         return -1;
     }
+    
+    char fn[2000];
+    
+    while (r) {
 
-    /* find the filename */
-    int name = 1, crt = 0, i;
+        /* find the filename */
+        int name = 1, crt = 0, i;
 
-    if (r->msg.type != 1){
-        printf("Expecting filename and size message\n");
-        return -1;
-    }
-
-    //msg ok;
-    charge ok;
-    fprintf(stderr, "sending ok_\n");
-    compcrc( r->crc.payload, CRC_LOAD_SZ, &ok.crc.crc);
-    fprintf(stderr, "sending crc_[%u]", ok.crc.crc);
-    ok.msg.type = 1000;
-    send_message((msg *)&ok);
-
-    for (i = 0; i < r->msg.len; i++){
-        if (crt >= 1400){
-            printf("Malformed message received! Bailing out");
-            return -1;
+        if (r->msg.type != 1){
+            printf("Expecting filename and size message\n");
+            //return -1;
+            continue;
         }
+        
+        
+        //msg ok;
+        /* Acknowledge for the filename and size */
+        charge ok;
+        fprintf(stderr, "sending ok_\n");
+        compcrc( r->crc.payload, CRC_LOAD_SZ, &ok.crc.crc);
+        fprintf(stderr, "sending crc_[%u]\n", ok.crc.crc);
+        if (ok.crc.crc == r->crc.crc) {
+            ok.msg.type = 1000;
+            send_message((msg *)&ok);
+            
+        
 
-        if (name){
-            if (r->msg.payload[i] == '\n'){
-                name = 0;
-                filename[crt] = 0;
-                crt = 0;
+            for (i = 0; i < r->msg.len; i++){
+                if (crt >= 1400){
+                    printf("Malformed message received! Bailing out");
+                    return -1;
+                }
+
+                if (name){
+                    if (r->msg.payload[i] == '\n'){
+                        name = 0;
+                        filename[crt] = 0;
+                        crt = 0;
+                    }
+                    else 
+                        filename[crt++] = r->msg.payload[i];
+                }
+                else {
+                    if (r->msg.payload[i] == '\n'){
+                        name = 0;
+                        filesize[crt] = 0;
+                        crt = 0;
+                        break;
+                    }
+                    else 
+                        filesize[crt++] = r->msg.payload[i];
+                }
             }
-            else 
-                filename[crt++] = r->msg.payload[i];
+            fs = atoi(filesize);
+            
+
+            sprintf(fn,"recv_%s", filename);
+            printf("Receiving file %s of size %d\n", fn, fs);
+            break;
         }
         else {
-            if (r->msg.payload[i] == '\n'){
-                name = 0;
-                filesize[crt] = 0;
-                crt = 0;
-                break;
-            }
-            else 
-                filesize[crt++] = r->msg.payload[i];
+            fprintf(stderr, "Handshake corrupt, or lost\nRecieving another\n");
+            r = (charge *) receive_message();
         }
     }
-    fs = atoi(filesize);
-    char fn[2000];
-
-    sprintf(fn,"recv_%s", filename);
-    printf("Receiving file %s of size %d\n", fn, fs);
 
     /* Open file to write into */
     int fd = open(fn, O_WRONLY | O_CREAT, 0644);

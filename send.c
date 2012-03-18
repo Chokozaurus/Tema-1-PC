@@ -106,28 +106,28 @@ void transmit(char* filename, int speed, int delay, double loss,
     charge t;
     memset(&t, 0, sizeof(charge));
     int not_sent = 1;
-    //msg *ok = NULL;
     charge *ok = NULL;
 
     /* Type 1: filename + filesize */
-    //t.type = 1;
     t.msg.type = 1;
-    //sprintf(t.payload, "%s\n%d\n", filename, (int) buf.st_size);
     sprintf(t.msg.payload, "%s\n%d\n", filename, (int) buf.st_size);
     t.msg.len = strlen(t.msg.payload) + 1;
-    //t.len = strlen(t.payload) + 1;
     
     
     
     compcrc(t.crc.payload, CRC_LOAD_SZ, &t.crc.crc);
-    fprintf(stderr, "type: [%d] load [%s] len[%d] crc[%u]", t.msg.type, t.msg.payload, t.msg.len, t.crc.crc);
-    //fprintf(stderr, "crc: %u\n", t.crc.crc);
+    fprintf(stderr, "type: [%d] load [%s] len[%d] crc[%u]\n", t.msg.type, t.msg.payload, t.msg.len, t.crc.crc);
 
     /* Make sure the first frame containing filename and its size is recieved */
     while (not_sent) {
         send_message((msg *)&t);
-        fprintf(stderr, "sent\n");
-        ok = (charge *)receive_message();
+        fprintf(stderr, "Handshake message attempted\n");
+        ok = (charge *)receive_message_timeout(delay + 20);
+
+        if(!ok) {
+            fprintf(stderr, "Handshake message receive failure\n");
+            continue;
+        }
         
         fprintf(stderr, "crc_recieved: [%u]\n", ok->crc.crc);
         if (ok->msg.type == 1000 && ok->crc.crc == t.crc.crc)
