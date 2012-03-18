@@ -6,17 +6,41 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include "lib.h"
+#include "crc.h"
 
 #define HOST "127.0.0.1"
 #define PORT 10000
 
-#define FRM_LOAD_SZ 1394
+#define PAYLOAD_SZ 1400
+#define PCK_LOAD_SZ (PAYLOAD_SZ - (sizeof(int) + sizeof(short int)))
+#define CRC_LOAD_SZ (PAYLOAD_SZ + (sizeof(int) + sizeof(short int)))
 
-typedef struct {
-    char load[FRM_LOAD_SZ];
+typedef struct _packet{
+    char load[PCK_LOAD_SZ];
     unsigned int id;
-    unsigned short int crc;
-} frame;
+    word crc;
+} packet;
+
+typedef union _charge {
+    struct {
+        int type;
+        int len;
+        char payload[PAYLOAD_SZ];   //1400
+    }msg;
+    struct {
+        int type;
+        int len;
+        unsigned int id;
+        char load[PCK_LOAD_SZ];     //1394
+        word crc;
+    }pack;
+    struct {
+        char payload[CRC_LOAD_SZ];  //1406
+        word crc;
+    }crc;
+}charge;
+
+word *tabel;
 
 /* Returns speed parameter */
 int get_speed(char* param) {
@@ -46,6 +70,14 @@ double get_corrupt(char *param) {
     return p;
 }
 
+/* Compute crc table */
+void compcrc( char *data, int len, word *acum ){
+    *acum = 0;
+    int i;
+    for(i = 0; i < len; ++i)
+        crctabel(data[i], acum, tabel);
+}
+
 /* Transmit the file Go-Back-N */
 void transmit(char* filename, int speed, int delay, double loss,
             double corrupt) {
@@ -70,29 +102,50 @@ void transmit(char* filename, int speed, int delay, double loss,
         return;
     }
 
-    msg t;
+    //msg t;
+    charge t;
+    memset(&t, 0, sizeof(charge));
     int not_sent = 1;
-    msg *ok = NULL;
+    //msg *ok = NULL;
+    charge *ok = NULL;
 
-    t.type = 1;
-    sprintf(t.payload, "%s\n%d\n", filename, (int) buf.st_size);
-    t.len = strlen(t.payload) + 1;
+    /* Type 1: filename + filesize */
+    //t.type = 1;
+    t.msg.type = 1;
+    //sprintf(t.payload, "%s\n%d\n", filename, (int) buf.st_size);
+    sprintf(t.msg.payload, "%s\n%d\n", filename, (int) buf.st_size);
+    t.msg.len = strlen(t.msg.payload) + 1;
+    //t.len = strlen(t.payload) + 1;
+    
+    
+    
+    compcrc(t.crc.payload, CRC_LOAD_SZ, &t.crc.crc);
+    fprintf(stderr, "type: [%d] load [%s] len[%d] crc[%u]", t.msg.type, t.msg.payload, t.msg.len, t.crc.crc);
+    //fprintf(stderr, "crc: %u\n", t.crc.crc);
 
     /* Make sure the first frame containing filename and its size is recieved */
     while (not_sent) {
-        send_message(&t);
-        ok = receive_message();
-        if (ok->type == 1000)
+        send_message((msg *)&t);
+        fprintf(stderr, "sent\n");
+        ok = (charge *)receive_message();
+        
+        fprintf(stderr, "crc_recieved: [%u]\n", ok->crc.crc);
+        if (ok->msg.type == 1000 && ok->crc.crc == t.crc.crc)
             not_sent = 0;
-        fprintf(stderr, "ok-type: [%d]\n", ok->type);
+        fprintf(stderr, "ok-type: [%d]\n", ok->msg.type);
     }
 
 
-    msg *window_buff = (msg *) calloc(window_sz, sizeof(msg));
+    //msg *window_buff = (msg *) calloc(window_sz, sizeof(msg));
+    //packet *packet_buff = (packet *) calloc(window_sz, sizeof(packet));
+    charge *buff = (charge *) calloc(window_sz, sizeof(charge));
 
+    
 
     close(file);
-    free(window_buff);
+    free(buff);
+    //free(packet_buff);
+    //free(window_buff);
 }
 
 /* Transmit te file start-stop */
@@ -152,6 +205,8 @@ int main(int argc, char** argv) {
         printf("Usage %s filename\n", argv[0]);
         return -1;
     }
+
+    tabel = tabelcrc(CRCCCITT);
 
     printf("Speed: %d\n", get_speed(argv[1]));
     printf("Delay: %d\n", get_delay(argv[2]));
