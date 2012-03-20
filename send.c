@@ -87,6 +87,7 @@ void transmit(char* filename, int speed, int delay, double loss,
     fprintf(stderr, "speed [%d], delay [%d]\n", speed, delay);
     fprintf(stderr, "window_sz: %d\n", window_sz);
 
+
     /* Attempt to get stats of the file */
     struct stat buf;
     if ( stat(filename, &buf) < 0 ) {
@@ -108,12 +109,15 @@ void transmit(char* filename, int speed, int delay, double loss,
 
     /* Type 1: filename + filesize */
     t.msg.type = 1;
-    sprintf(t.msg.payload, "%s\n%d\n", filename, (int) buf.st_size);
-    t.msg.len = strlen(t.msg.payload) + 1;
+    //sprintf(t.msg.payload, "%s\n%d\n", filename, (int) buf.st_size);
+    sprintf(t.pack.load, "%s\n%d\n", filename, (int) buf.st_size);
+    t.msg.len = strlen(t.pack.load) + 1;
+
+    t.pack.id = (unsigned int) window_sz;   /* window size in place of id */
 
     /* Compute CRC of the handshake message */
     compcrc(t.crc.payload, CRC_LOAD_SZ, &t.crc.crc);
-    fprintf(stderr, "type: [%d] load [%s] len[%d] crc[%u]\n", t.msg.type, t.msg.payload, t.msg.len, t.crc.crc);
+    fprintf(stderr, "type: [%d] load [%s] len[%d] crc[%u]\n", t.msg.type, t.pack.load, t.msg.len, t.crc.crc);
 
     /* Make sure the first frame containing filename and its size is recieved */
     while (not_sent) {
@@ -131,6 +135,16 @@ void transmit(char* filename, int speed, int delay, double loss,
             not_sent = 0;
         fprintf(stderr, "ok-type: [%d]\n", ok->msg.type);
     }
+
+    charge *win_rec = NULL;
+    win_rec = (charge *)receive_message();
+    if (!win_rec) {
+        fprintf(stderr, "Not recieved\n");
+    }
+    if (win_rec->msg.type != 2000)
+        fprintf(stderr, "Error, window size from reciever expected\n");
+    const int win_recv = win_rec->pack.id;
+    fprintf(stderr, "win_recv: [%d]\n", win_recv);
 
 
     /* Transmit the content */

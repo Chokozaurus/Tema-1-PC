@@ -66,11 +66,12 @@ int main(int argc, char** argv) {
 
     /* Read window parameter */
     int window = get_window( argv[1] );
+    int win;
     fprintf(stderr, "recv window : [%d]\n", window);
 
     tabel = tabelcrc(CRCCCITT);
 
-    /* Receive handshake message 
+    /* Receive handshake message
     ****************************
     */
     charge *r = NULL;
@@ -111,26 +112,29 @@ int main(int argc, char** argv) {
                 }
 
                 if (name){
-                    if (r->msg.payload[i] == '\n'){
+                    if (r->pack.load[i] == '\n'){
                         name = 0;
                         filename[crt] = 0;
                         crt = 0;
                     }
                     else
-                        filename[crt++] = r->msg.payload[i];
+                        filename[crt++] = r->pack.load[i];
                 }
                 else {
-                    if (r->msg.payload[i] == '\n'){
+                    if (r->pack.load[i] == '\n'){
                         name = 0;
                         filesize[crt] = 0;
                         crt = 0;
                         break;
                     }
                     else
-                        filesize[crt++] = r->msg.payload[i];
+                        filesize[crt++] = r->pack.load[i];
                 }
             }
             fs = atoi(filesize);
+
+            win = r->pack.id;
+            fprintf(stderr, "sender window: [%d]\n", win);
 
             sprintf(fn,"recv_%s", filename);
             printf("Receiving file %s of size %d\n", fn, fs);
@@ -141,6 +145,13 @@ int main(int argc, char** argv) {
             r = (charge *) receive_message();
         }
     }
+
+    /* Send window size to 'sender' */
+    charge win_rec;
+    memset(&win_rec, 0, sizeof(charge));
+    win_rec.msg.type = 2000;
+    win_rec.pack.id = (unsigned int) window;    /* The actual info */
+    send_message( (msg *)&win_rec );
 
     /* Open file to write into
     **************************
@@ -172,7 +183,7 @@ int main(int argc, char** argv) {
         t.len = strlen(t.payload) + 1;
         send_message(&t);
     }
-    
+
     close (fd);
     return 0;
 }
