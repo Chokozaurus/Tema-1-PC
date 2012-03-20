@@ -15,12 +15,6 @@
 #define PCK_LOAD_SZ (PAYLOAD_SZ - (sizeof(int) + sizeof(short int)))
 #define CRC_LOAD_SZ (PAYLOAD_SZ + (sizeof(int) + sizeof(short int)))
 
-typedef struct _packet{
-    char load[PCK_LOAD_SZ];
-    unsigned int id;
-    word crc;
-} packet;
-
 typedef union _charge {
     struct {
         int type;
@@ -89,12 +83,14 @@ void transmit(char* filename, int speed, int delay, double loss,
     fprintf(stderr, "speed [%d], delay [%d]\n", speed, delay);
     fprintf(stderr, "window_sz: %d\n", window_sz);
 
+    /* Attempt to get stats of the file */
     struct stat buf;
     if ( stat(filename, &buf) < 0 ) {
         perror("Stat failed");
         return;
     }
 
+    /* Open the file */
     int file = open(filename, O_RDONLY);
 
     if (file < 0) {
@@ -112,9 +108,9 @@ void transmit(char* filename, int speed, int delay, double loss,
     t.msg.type = 1;
     sprintf(t.msg.payload, "%s\n%d\n", filename, (int) buf.st_size);
     t.msg.len = strlen(t.msg.payload) + 1;
-    
-    
-    
+
+
+
     compcrc(t.crc.payload, CRC_LOAD_SZ, &t.crc.crc);
     fprintf(stderr, "type: [%d] load [%s] len[%d] crc[%u]\n", t.msg.type, t.msg.payload, t.msg.len, t.crc.crc);
 
@@ -128,7 +124,7 @@ void transmit(char* filename, int speed, int delay, double loss,
             fprintf(stderr, "Handshake message receive failure\n");
             continue;
         }
-        
+
         fprintf(stderr, "crc_recieved: [%u]\n", ok->crc.crc);
         if (ok->msg.type == 1000 && ok->crc.crc == t.crc.crc)
             not_sent = 0;
@@ -136,16 +132,12 @@ void transmit(char* filename, int speed, int delay, double loss,
     }
 
 
-    //msg *window_buff = (msg *) calloc(window_sz, sizeof(msg));
-    //packet *packet_buff = (packet *) calloc(window_sz, sizeof(packet));
     charge *buff = (charge *) calloc(window_sz, sizeof(charge));
 
-    
+
 
     close(file);
     free(buff);
-    //free(packet_buff);
-    //free(window_buff);
 }
 
 /* Transmit te file start-stop */

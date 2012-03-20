@@ -63,9 +63,9 @@ int main(int argc, char** argv) {
         perror("Receive message");
         return -1;
     }
-    
+
     char fn[2000];
-    
+
     while (r) {
 
         /* find the filename */
@@ -76,19 +76,20 @@ int main(int argc, char** argv) {
             //return -1;
             continue;
         }
-        
-        
+
+
         //msg ok;
         /* Acknowledge for the filename and size */
         charge ok;
         fprintf(stderr, "sending ok_\n");
         compcrc( r->crc.payload, CRC_LOAD_SZ, &ok.crc.crc);
         fprintf(stderr, "sending crc_[%u]\n", ok.crc.crc);
+        
         if (ok.crc.crc == r->crc.crc) {
             ok.msg.type = 1000;
             send_message((msg *)&ok);
-            
-        
+
+
 
             for (i = 0; i < r->msg.len; i++){
                 if (crt >= 1400){
@@ -102,7 +103,7 @@ int main(int argc, char** argv) {
                         filename[crt] = 0;
                         crt = 0;
                     }
-                    else 
+                    else
                         filename[crt++] = r->msg.payload[i];
                 }
                 else {
@@ -112,12 +113,12 @@ int main(int argc, char** argv) {
                         crt = 0;
                         break;
                     }
-                    else 
+                    else
                         filesize[crt++] = r->msg.payload[i];
                 }
             }
             fs = atoi(filesize);
-            
+
 
             sprintf(fn,"recv_%s", filename);
             printf("Receiving file %s of size %d\n", fn, fs);
@@ -144,10 +145,10 @@ int main(int argc, char** argv) {
         }
 
         if (r->msg.type != 2){
-            printf("Expecting filename and size message\n");
+            printf("Expecting payload\n");
             return -1;
         }
-    
+
         write(fd, r->msg.payload, r->msg.len);
         fs -= r->msg.len;
         free(r);
