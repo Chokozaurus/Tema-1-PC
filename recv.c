@@ -20,11 +20,13 @@ typedef struct _packet {
 } packet;
 
 typedef union _charge {
+    /* The original struct */
     struct {
         int type;
         int len;
         char payload[PAYLOAD_SZ];   //1400
     }msg;
+    /* Struct having id and crc for packages */
     struct {
         int type;
         int len;
@@ -32,6 +34,7 @@ typedef union _charge {
         char load[PCK_LOAD_SZ];     //1394
         word crc;
     }pack;
+    /* Struct used to easily compute the crc for message */
     struct {
         char payload[CRC_LOAD_SZ];  //1406
         word crc;
@@ -48,14 +51,28 @@ void compcrc( char *data, int len, word *acum ){
         crctabel(data[i], acum, tabel);
 }
 
+/* Returns window parameter */
+int get_window(char* param) {
+    int p;
+    sscanf(param, "window=%d", &p);
+    return p;
+}
+
 int main(int argc, char** argv) {
-    msg /* *r*/t;
+    msg t;
     init(HOST, PORT);
     char filename[1400], filesize[1400];
     int fs;
 
+    /* Read window parameter */
+    int window = get_window( argv[1] );
+    fprintf(stderr, "recv window : [%d]\n", window);
+
     tabel = tabelcrc(CRCCCITT);
 
+    /* Receive handshake message 
+    ****************************
+    */
     charge *r = NULL;
     r = (charge *)receive_message();
 
@@ -77,19 +94,15 @@ int main(int argc, char** argv) {
             continue;
         }
 
-
-        //msg ok;
         /* Acknowledge for the filename and size */
         charge ok;
         fprintf(stderr, "sending ok_\n");
         compcrc( r->crc.payload, CRC_LOAD_SZ, &ok.crc.crc);
         fprintf(stderr, "sending crc_[%u]\n", ok.crc.crc);
-        
+
         if (ok.crc.crc == r->crc.crc) {
             ok.msg.type = 1000;
             send_message((msg *)&ok);
-
-
 
             for (i = 0; i < r->msg.len; i++){
                 if (crt >= 1400){
@@ -119,7 +132,6 @@ int main(int argc, char** argv) {
             }
             fs = atoi(filesize);
 
-
             sprintf(fn,"recv_%s", filename);
             printf("Receiving file %s of size %d\n", fn, fs);
             break;
@@ -130,7 +142,9 @@ int main(int argc, char** argv) {
         }
     }
 
-    /* Open file to write into */
+    /* Open file to write into
+    **************************
+    */
     int fd = open(fn, O_WRONLY | O_CREAT, 0644);
     if (fd < 0) {
         perror("Failed to open file\n");
@@ -158,5 +172,7 @@ int main(int argc, char** argv) {
         t.len = strlen(t.payload) + 1;
         send_message(&t);
     }
+    
+    close (fd);
     return 0;
 }

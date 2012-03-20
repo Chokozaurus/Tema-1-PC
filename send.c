@@ -16,11 +16,13 @@
 #define CRC_LOAD_SZ (PAYLOAD_SZ + (sizeof(int) + sizeof(short int)))
 
 typedef union _charge {
+    /* The original struct */
     struct {
         int type;
         int len;
         char payload[PAYLOAD_SZ];   //1400
     }msg;
+    /* Struct having id and crc for packages */
     struct {
         int type;
         int len;
@@ -28,6 +30,7 @@ typedef union _charge {
         char load[PCK_LOAD_SZ];     //1394
         word crc;
     }pack;
+    /* Struct used to easily compute the crc for message */
     struct {
         char payload[CRC_LOAD_SZ];  //1406
         word crc;
@@ -76,6 +79,7 @@ void compcrc( char *data, int len, word *acum ){
 void transmit(char* filename, int speed, int delay, double loss,
             double corrupt) {
 
+    /* Compute window size */
     const int window_sz = (int) ( (double) ( ( (double)(speed * delay) / 8) \
                         * (1 << 20)  ) / (1000 * 1400) + 1 );
 
@@ -98,19 +102,16 @@ void transmit(char* filename, int speed, int delay, double loss,
         return;
     }
 
-    //msg t;
-    charge t;
+    charge t, *ok = NULL;;
     memset(&t, 0, sizeof(charge));
     int not_sent = 1;
-    charge *ok = NULL;
 
     /* Type 1: filename + filesize */
     t.msg.type = 1;
     sprintf(t.msg.payload, "%s\n%d\n", filename, (int) buf.st_size);
     t.msg.len = strlen(t.msg.payload) + 1;
 
-
-
+    /* Compute CRC of the handshake message */
     compcrc(t.crc.payload, CRC_LOAD_SZ, &t.crc.crc);
     fprintf(stderr, "type: [%d] load [%s] len[%d] crc[%u]\n", t.msg.type, t.msg.payload, t.msg.len, t.crc.crc);
 
@@ -132,6 +133,7 @@ void transmit(char* filename, int speed, int delay, double loss,
     }
 
 
+    /* Transmit the content */
     charge *buff = (charge *) calloc(window_sz, sizeof(charge));
 
 
