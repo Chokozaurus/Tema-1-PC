@@ -81,7 +81,7 @@ void transmit(char* filename, int speed, int delay, double loss,
 
     /* Compute window size */
     const int window_sz = (int) ( (double) ( ( (double)(speed * delay) / 8) \
-                        * (1 << 20)  ) / (1000 * 1400) + 1 );
+                        * (1 << 20)  ) / (1000 * 1408) + 1 );
 
 
     fprintf(stderr, "speed [%d], delay [%d]\n", speed, delay);
@@ -109,7 +109,6 @@ void transmit(char* filename, int speed, int delay, double loss,
 
     /* Type 1: filename + filesize */
     t.msg.type = 1;
-    //sprintf(t.msg.payload, "%s\n%d\n", filename, (int) buf.st_size);
     sprintf(t.pack.load, "%s\n%d\n", filename, (int) buf.st_size);
     t.msg.len = strlen(t.pack.load) + 1;
 
