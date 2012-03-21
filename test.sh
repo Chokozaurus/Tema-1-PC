@@ -4,7 +4,7 @@ SPEED=10
 DELAY=2000
 LOSS=10
 CORRUPT=10
-WINDOW=250
+WINDOW=1000
 
 echo "Killing already opened processes"
 killall -q link

@@ -75,18 +75,19 @@ void compcrc( char *data, int len, word *acum ){
         crctabel(data[i], acum, tabel);
 }
 
-/* Transmit the file Go-Back-N */
+/* Transmit the file using Selective Repeat protocol
+****************************************************
+*/
 void transmit(char* filename, int speed, int delay, double loss,
             double corrupt) {
 
     /* Compute window size */
-    const int window_sz = (int) ( (double) ( ( (double)(speed * delay) / 8) \
+    int window_sz = (int) ( (double) ( ( (double)(speed * delay) / 8) \
                         * (1 << 20)  ) / (1000 * 1408) + 1 );
 
 
     fprintf(stderr, "speed [%d], delay [%d]\n", speed, delay);
     fprintf(stderr, "window_sz: %d\n", window_sz);
-
 
     /* Attempt to get stats of the file */
     struct stat buf;
@@ -145,8 +146,13 @@ void transmit(char* filename, int speed, int delay, double loss,
     const int win_recv = win_rec->pack.id;
     fprintf(stderr, "win_recv: [%d]\n", win_recv);
 
+    if (win_recv != 0 && window_sz > win_recv)
+        window_sz = win_recv;
 
-    /* Transmit the content */
+    fprintf(stderr, "win_sender recomputed: [%d]\n", window_sz);
+
+
+    /* Transmit the content of the file */
     charge *buff = (charge *) calloc(window_sz, sizeof(charge));
 
 

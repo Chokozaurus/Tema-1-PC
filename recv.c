@@ -153,6 +153,11 @@ int main(int argc, char** argv) {
     win_rec.pack.id = (unsigned int) window;    /* The actual info */
     send_message( (msg *)&win_rec );
 
+    if ( window == 0 || window > win )
+        window = win;
+
+    fprintf(stderr, "\nRecv window recomputed: [%d] \n", window);
+
     /* Open file to write into
     **************************
     */
@@ -161,6 +166,7 @@ int main(int argc, char** argv) {
         perror("Failed to open file\n");
     }
 
+    /* Process information */
     while (fs > 0){
         printf("Left to read %d\n", fs);
         r = (charge *)receive_message();
