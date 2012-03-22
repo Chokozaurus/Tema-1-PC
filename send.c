@@ -68,11 +68,49 @@ double get_corrupt(char *param) {
 }
 
 /* Compute crc table */
-void compcrc( char *data, int len, word *acum ){
+void compcrc(char *data, int len, word *acum) {
     *acum = 0;
     int i;
     for(i = 0; i < len; ++i)
         crctabel(data[i], acum, tabel);
+}
+
+/* Push a charge element into a queue implemented as array */
+void push(charge *queue, charge elem, unsigned int front, unsigned int *count, 
+        unsigned int max_size) {
+
+    if (*count >= 10) {
+        fprintf(stderr, "Queue size exceded\n");
+        exit(1);
+    }
+
+    unsigned int new_index;
+    new_index = (front + *count) % max_size;
+    queue[new_index] = elem;
+
+    (*count)++;
+}
+
+/* Pop a charge element from a queue implemented as array */
+charge pop(charge *queue, unsigned int *front, unsigned int *count, 
+        unsigned int max_size) {
+
+    charge old_elem;
+
+    if (*count <= 0) {
+        fprintf(stderr, "Pop on empty queue\n");
+        exit(1);
+    }
+
+    old_elem = queue[*front];
+    memset(&queue[*front], 0, sizeof(charge));
+
+    (*front)++;
+    (*front) %= max_size;
+
+    (*count)--;
+
+    return old_elem;
 }
 
 /* Transmit the file using Selective Repeat protocol
@@ -123,7 +161,7 @@ void transmit(char* filename, int speed, int delay, double loss,
     while (not_sent) {
         send_message((msg *)&t);
         fprintf(stderr, "Handshake message attempted\n");
-        ok = (charge *)receive_message_timeout(delay + 20);
+        ok = (charge *)receive_message();//_timeout(delay + 20);
 
         if(!ok) {
             fprintf(stderr, "Handshake message receive failure\n");
@@ -155,8 +193,11 @@ void transmit(char* filename, int speed, int delay, double loss,
     fprintf(stderr, "win_sender recomputed: [%d]\n", window_sz);
 
 
-    /* Transmit the content of the file */
+    /* Transmit the content of the file 
+    ************************************
+    */
     unsigned int seq = 0;
+    unsigned int front = 0, count = 0;
     charge *buff = (charge *) calloc(window_sz, sizeof(charge));
     charge tr, *rr;
     memset(&tr, 0, sizeof(charge));
@@ -166,22 +207,80 @@ void transmit(char* filename, int speed, int delay, double loss,
         tr.pack.id = seq;
         compcrc(tr.crc.payload, CRC_LOAD_SZ, &tr.crc.crc);
 
+        /* Queue tests
+        ***************************************************
+        */
+
 /*        fprintf(stderr, "tr-id: [%u]\ttr-type: [%d]\ttr-len: [%d]\t tr-crc: [%d]\n", tr.pack.id,*/
 /*                tr.msg.type, tr.msg.len, tr.pack.crc);*/
 
-        memcpy(&buff[seq % window_sz], &tr, sizeof(tr) );
+        //memcpy(&buff[seq % window_sz], &tr, sizeof(tr) );
+        
+/*        push(buff, tr, front, &count, window_sz);*/
+/*        fprintf(stderr, "\nTEST_QUEUE:\nfront: [%u]\tcount: [%u]\tbuff[front].pack.crc: [%u]\n",*/
+/*            front, count, buff[front].pack.crc);*/
+/*        charge test = pop(buff, &front, &count, window_sz);*/
+/*        fprintf(stderr, "\nTEST_QUEUE_POP:\nfront: [%u]\tcount: [%u]\ttest.pack.crc: [%u]\n",*/
+/*            front, count, test.pack.crc);*/
+/*            */
+        
 /*        fprintf(stderr, "buf-id: [%u]\tbuf-type: [%d]\tbuf-len: [%d]\t buf-crc: [%d]\n", buff[seq%window_sz].pack.id,*/
 /*                buff[seq%window_sz].msg.type, buff[seq%window_sz].msg.len, buff[seq%window_sz].pack.crc);*/
 
-        //fprintf(stderr, "%d Before send_message\n", seq);
-        send_message((msg *)&buff[seq % window_sz]);
-        //fprintf(stderr, "%d After send_message\n", seq);
-
+        send_message((msg *) &tr);
+        push(buff, tr, front, &count, window_sz);
+        //fprintf(stderr, "push_nr: [%u]\tcount: [%u]\n", seq, count);
+        
         seq++;
 
-        memset(&tr, 0, sizeof(charge));
+        //memset(&tr, 0, sizeof(charge));
+        
 
-        rr = receive_message_timeout(delay+20);
+        if ( count < window_sz && tr.msg.len == PCK_LOAD_SZ ) {
+            memset(&tr, 0, sizeof(charge));
+            continue;   /* Fulfill buffer */
+        }
+
+        /* Read ACK or NAK */
+        rr = (charge *)receive_message_timeout(delay * 2 + 20);
+        charge nkd, ackd;
+        
+        //fprintf(stderr, "rr->pack.type: [%u]\n", rr->pack.type);
+        
+        switch (rr->pack.type) {
+            /* Case for NAK */
+            case 4:
+                fprintf(stderr, "NAK\n");
+                nkd = pop(buff, &front, &count, window_sz);
+                send_message((msg *) &nkd);
+                push(buff, nkd, front, &count, window_sz);
+                break;
+            /* Case for ACK */
+            case 3:
+                //fprintf(stderr, "ACK\n");
+                ackd = pop(buff, &front, &count, window_sz);
+                //fprintf(stderr, "ackd-id: [%u]\t rr-id-cmp: [%u]\n", ackd.pack.id, rr->pack.id);
+                while ( ackd.pack.id != rr->pack.id ) {
+                    //fprintf(stderr, "rr-id: [%u]\tfront: [%u]\tcount: [%u]\n", ackd.pack.id, front, count);
+                    send_message((msg *) &ackd);
+                    push(buff, ackd, front, &count, window_sz);
+                    
+                    ackd = pop(buff, &front, &count, window_sz);
+                    //exit(1);
+                }
+                //ackd = pop(buff, &front, &count, window_sz);
+                break;
+            default:
+                break;
+            }
+        
+/*        while ( count < window_sz &&*/
+/*            (tr.msg.len = read(file, &tr.pack.load, PCK_LOAD_SZ) ) > 0 ) {*/
+/*            */
+//            tr.msg.type = 2;    /* Data */
+/*            tr.pack.id = seq;*/
+/*            compcrc(tr.crc.payload, CRC_LOAD_SZ, &tr.crc.crc);*/
+/*        }*/
     }
 /*    send_message( (msg *) &buff[0] );*/
     //rr = receive_message_timeout(delay+20);

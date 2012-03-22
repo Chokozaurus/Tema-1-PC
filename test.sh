@@ -1,10 +1,10 @@
 #!/bin/bash
 
-SPEED=1
+SPEED=10
 DELAY=1
-LOSS=0
+LOSS=10
 CORRUPT=0
-WINDOW=1000
+WINDOW=0
 
 echo "Killing already opened processes"
 killall -q link
@@ -15,7 +15,7 @@ rm -f recv_$1
 
 ./link speed=$SPEED delay=$DELAY loss=$LOSS corrupt=$CORRUPT &> link.out &
 sleep 1
-./recv window=$WINDOW & #2> primit.out &
+./recv window=$WINDOW & #> primit.out &
 sleep 1
 
 echo "Starting transfer"

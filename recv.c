@@ -170,6 +170,15 @@ int main(int argc, char** argv) {
     }
 
     /* Process information */
+    unsigned int seq = 0;
+    charge *buff = (charge *) calloc(window, sizeof(charge));
+    charge nak, ack;
+    
+    nak.msg.type = 4;
+    nak.msg.len = 2;
+    ack.msg.type = 3;
+    ack.msg.len = 2;
+    
     while (fs > 0){
         printf("Left to read %d\n", fs);
         r = (charge *)receive_message();
@@ -185,17 +194,30 @@ int main(int argc, char** argv) {
 
 /*        fprintf(stderr, "rec-type: [%d]\t rec-len: [%d], rec-seq: [%u]\n",*/
 /*            r->msg.type, r->msg.len, r->pack.id);*/
-
+        unsigned short int crc_computed;
+        compcrc(r->crc.payload, CRC_LOAD_SZ, &crc_computed);
+        
+        fprintf(stderr, "computed_crc: [%u]\trecieved_crc: [%u]\n", crc_computed, r->crc.crc);
+        if (r->crc.crc != crc_computed) {
+            send_message((msg *) &nak);
+            continue;
+        }
+        fprintf(stderr, "r->pack.id: [%u]\n", r->pack.id);
+        ack.pack.id = r->pack.id;
+        send_message((msg *) &ack);
+        
         write(fd, r->pack.load, r->msg.len);
         fs -= r->msg.len;
         free(r);
 
-        memset(&t, 0, sizeof(t));
-        t.msg.type = 3;
-        sprintf(t.pack.load, "ACK");
-        t.msg.len = strlen(t.pack.load) + 1;
-        send_message((msg *)&t);
+/*        memset(&t, 0, sizeof(t));*/
+/*        t.msg.type = 3;*/
+/*        sprintf(t.pack.load, "ACK");*/
+/*        t.msg.len = strlen(t.pack.load) + 1;*/
+/*        send_message((msg *)&t);*/
     }
+    
+    free(buff);
 
     fprintf(stderr, "Before close-file recv\n");
     close (fd);
