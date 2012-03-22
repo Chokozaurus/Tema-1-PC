@@ -59,7 +59,7 @@ int get_window(char* param) {
 }
 
 int main(int argc, char** argv) {
-    msg t;
+    charge t;
     init(HOST, PORT);
     char filename[1400], filesize[1400];
     int fs;
@@ -156,6 +156,9 @@ int main(int argc, char** argv) {
     if ( window == 0 || window > win )
         window = win;
 
+    if (window < 10)
+        window = 10;
+
     fprintf(stderr, "\nRecv window recomputed: [%d] \n", window);
 
     /* Open file to write into
@@ -180,16 +183,22 @@ int main(int argc, char** argv) {
             return -1;
         }
 
-        write(fd, r->msg.payload, r->msg.len);
+/*        fprintf(stderr, "rec-type: [%d]\t rec-len: [%d], rec-seq: [%u]\n",*/
+/*            r->msg.type, r->msg.len, r->pack.id);*/
+
+        write(fd, r->pack.load, r->msg.len);
         fs -= r->msg.len;
         free(r);
 
-        t.type = 3;
-        sprintf(t.payload, "ACK");
-        t.len = strlen(t.payload) + 1;
-        send_message(&t);
+        memset(&t, 0, sizeof(t));
+        t.msg.type = 3;
+        sprintf(t.pack.load, "ACK");
+        t.msg.len = strlen(t.pack.load) + 1;
+        send_message((msg *)&t);
     }
 
+    fprintf(stderr, "Before close-file recv\n");
     close (fd);
+    fprintf(stderr, "End recv\n");
     return 0;
 }

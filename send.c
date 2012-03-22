@@ -149,16 +149,48 @@ void transmit(char* filename, int speed, int delay, double loss,
     if (win_recv != 0 && window_sz > win_recv)
         window_sz = win_recv;
 
+    if (window_sz < 10)
+        window_sz = 10;
+
     fprintf(stderr, "win_sender recomputed: [%d]\n", window_sz);
 
 
     /* Transmit the content of the file */
+    unsigned int seq = 0;
     charge *buff = (charge *) calloc(window_sz, sizeof(charge));
+    charge tr, *rr;
+    memset(&tr, 0, sizeof(charge));
 
+    while ( (tr.msg.len = read(file, &tr.pack.load, PCK_LOAD_SZ) ) > 0 ) {
+        tr.msg.type = 2;    /* Data */
+        tr.pack.id = seq;
+        compcrc(tr.crc.payload, CRC_LOAD_SZ, &tr.crc.crc);
 
+/*        fprintf(stderr, "tr-id: [%u]\ttr-type: [%d]\ttr-len: [%d]\t tr-crc: [%d]\n", tr.pack.id,*/
+/*                tr.msg.type, tr.msg.len, tr.pack.crc);*/
 
+        memcpy(&buff[seq % window_sz], &tr, sizeof(tr) );
+/*        fprintf(stderr, "buf-id: [%u]\tbuf-type: [%d]\tbuf-len: [%d]\t buf-crc: [%d]\n", buff[seq%window_sz].pack.id,*/
+/*                buff[seq%window_sz].msg.type, buff[seq%window_sz].msg.len, buff[seq%window_sz].pack.crc);*/
+
+        //fprintf(stderr, "%d Before send_message\n", seq);
+        send_message((msg *)&buff[seq % window_sz]);
+        //fprintf(stderr, "%d After send_message\n", seq);
+
+        seq++;
+
+        memset(&tr, 0, sizeof(charge));
+
+        rr = receive_message_timeout(delay+20);
+    }
+/*    send_message( (msg *) &buff[0] );*/
+    //rr = receive_message_timeout(delay+20);
+
+    fprintf(stderr, "Before close_file\n");
     close(file);
+    fprintf(stderr, "After close_file && before free\n");
     free(buff);
+    fprintf(stderr, "After free\n");
 }
 
 /* Transmit te file start-stop */
@@ -229,6 +261,7 @@ int main(int argc, char** argv) {
     transmit(argv[5], get_speed(argv[1]), get_delay(argv[2]), get_loss(argv[3]),
             get_corrupt(argv[4]) );
 
+    fprintf(stderr, "Out of transmit\n");
     //send_file(argv[5]);
     return 0;
 }
