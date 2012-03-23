@@ -172,6 +172,7 @@ void transmit(char* filename, int speed, int delay, double loss,
         if (ok->msg.type == 1000 && ok->crc.crc == t.crc.crc)
             not_sent = 0;
         fprintf(stderr, "ok-type: [%d]\n", ok->msg.type);
+        free(ok);
     }
 
     charge *win_rec = NULL;
@@ -183,6 +184,8 @@ void transmit(char* filename, int speed, int delay, double loss,
         fprintf(stderr, "Error, window size from reciever expected\n");
     const int win_recv = win_rec->pack.id;
     fprintf(stderr, "win_recv: [%d]\n", win_recv);
+    
+    free(win_rec);
 
     if (win_recv != 0 && window_sz > win_recv)
         window_sz = win_recv;
@@ -199,7 +202,6 @@ void transmit(char* filename, int speed, int delay, double loss,
     unsigned int seq = 0;
     unsigned int front = 0, count = 0;
     charge *buff = (charge *) calloc(window_sz, sizeof(charge));
-    fprintf(stderr, "window_sz: %d\n", window_sz);
     charge tr, *rr;
     memset(&tr, 0, sizeof(charge));
     int flen = (int) buf.st_size;
@@ -233,7 +235,7 @@ void transmit(char* filename, int speed, int delay, double loss,
 
         send_message((msg *) &tr);
         push(buff, tr, front, &count, window_sz);
-        fprintf(stderr, "push_nr: [%u]\tcount: [%u]\n", seq, count);
+        //fprintf(stderr, "push_nr: [%u]\tcount: [%u]\n", seq, count);
         
         seq++;
         
@@ -259,18 +261,19 @@ void transmit(char* filename, int speed, int delay, double loss,
         switch (rr->pack.type) {
             /* Case for NAK */
             case 4:
-                fprintf(stderr, "NAK\n");
+                //fprintf(stderr, "NAK\n");
                 nkd = pop(buff, &front, &count, window_sz);
                 send_message((msg *) &nkd);
                 push(buff, nkd, front, &count, window_sz);
                 
+                free(rr);
                 goto read;
                 break;
             /* Case for ACK */
             case 3:
                 //fprintf(stderr, "ACK\n");
                 ackd = pop(buff, &front, &count, window_sz);
-                fprintf(stderr, "ackd-id: [%u]\t rr-id-cmp: [%u]\n", ackd.pack.id, rr->pack.id);
+                //fprintf(stderr, "ackd-id: [%u]\t rr-id-cmp: [%u]\n", ackd.pack.id, rr->pack.id);
                 while ( ackd.pack.id != rr->pack.id ) {
                     //fprintf(stderr, "rr-id: [%u]\tfront: [%u]\tcount: [%u]\n", ackd.pack.id, front, count);
                     send_message((msg *) &ackd);
@@ -280,22 +283,13 @@ void transmit(char* filename, int speed, int delay, double loss,
                     //exit(1);
                 }
                 flen -= ackd.pack.len;
+                free(rr);
                 //ackd = pop(buff, &front, &count, window_sz);
                 break;
             default:
                 break;
             }
-        
-/*        while ( count < window_sz &&*/
-/*            (tr.msg.len = read(file, &tr.pack.load, PCK_LOAD_SZ) ) > 0 ) {*/
-/*            */
-//            tr.msg.type = 2;    /* Data */
-/*            tr.pack.id = seq;*/
-/*            compcrc(tr.crc.payload, CRC_LOAD_SZ, &tr.crc.crc);*/
-/*        }*/
     }
-/*    send_message( (msg *) &buff[0] );*/
-    //rr = receive_message_timeout(delay+20);
 
     fprintf(stderr, "Before close_file\n");
     close(file);

@@ -15,7 +15,7 @@ rm -f recv_$1
 
 ./link speed=$SPEED delay=$DELAY loss=$LOSS corrupt=$CORRUPT &> link.out &
 sleep 1
-./recv window=$WINDOW & #> primit.out &
+./recv window=$WINDOW &> /dev/null &
 sleep 1
 
 echo "Starting transfer"

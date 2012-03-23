@@ -197,12 +197,12 @@ int main(int argc, char** argv) {
         unsigned short int crc_computed;
         compcrc(r->crc.payload, CRC_LOAD_SZ, &crc_computed);
         
-        fprintf(stderr, "computed_crc: [%u]\trecieved_crc: [%u]\n", crc_computed, r->crc.crc);
+        //fprintf(stderr, "computed_crc: [%u]\trecieved_crc: [%u]\n", crc_computed, r->crc.crc);
         if (r->crc.crc != crc_computed || (r->pack.id - seq) >= window) {
             send_message((msg *) &nak);
             continue;
         }
-        fprintf(stderr, "r->pack.id: [%u]\n", r->pack.id);
+        //fprintf(stderr, "r->pack.id: [%u]\n", r->pack.id);
         ack.pack.id = r->pack.id;
         send_message((msg *) &ack);
         
