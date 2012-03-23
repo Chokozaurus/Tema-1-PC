@@ -38,7 +38,7 @@ typedef union _charge {
 /* CRC Table */
 word *tabel;
 
-/* Compute the CRC */
+/* Compute CRC checksum */
 void compcrc( char *data, int len, word *acum ){
     *acum = 0;
     int i;
@@ -171,13 +171,13 @@ int main(int argc, char** argv) {
     charge nak, ack;
     memset(&ack, 0, sizeof(charge));
     memset(&nak, 0, sizeof(charge));
-    
+
     nak.msg.type = 4;
     nak.msg.len = 2;
     ack.msg.type = 3;
     ack.msg.len = 2;
     r = NULL;
-    
+
     while (fs > 0){
         if (r)
             free(r);
@@ -205,9 +205,9 @@ int main(int argc, char** argv) {
         /* Otherwise, send ACK and try to flush the buffer */
         ack.pack.id = r->pack.id;
         send_message((msg *) &ack);
-        
+
         buff[r->pack.id % window] = *r;
-        
+
         int i, j;
         for (j = 0, i=seq % window; j < window && buff[i].msg.type != 0; j++) {
             write(fd, buff[i].pack.load, buff[i].msg.len);
@@ -222,7 +222,7 @@ int main(int argc, char** argv) {
     }
     if (r)
         free(r);
-    
+
     free(buff);
     free(tabel);
 
