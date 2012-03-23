@@ -149,6 +149,8 @@ int main(int argc, char** argv) {
             r = (charge *) receive_message();
         }
     }
+    if (r)
+        free(r);
 
     /* Send window size to 'sender' */
     charge win_rec;
@@ -184,11 +186,11 @@ int main(int argc, char** argv) {
     nak.msg.len = 2;
     ack.msg.type = 3;
     ack.msg.len = 2;
-    //r = NULL;
+    r = NULL;
     
     while (fs > 0){
-        //if (r)
-        //    free(r);
+        if (r)
+            free(r);
         printf("Left to read from sender %d\n", fs);
         r = (charge *)receive_message();
         if (!r){
@@ -239,6 +241,8 @@ int main(int argc, char** argv) {
 /*        t.msg.len = strlen(t.pack.load) + 1;*/
 /*        send_message((msg *)&t);*/
     }
+    if (r)
+        free(r);
     
     free(buff);
     free(tabel);

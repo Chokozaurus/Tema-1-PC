@@ -124,8 +124,8 @@ void transmit(char* filename, int speed, int delay, double loss,
                         * (1 << 20)  ) / (1000 * 1408) + 1 );
 
 
-    fprintf(stderr, "speed [%d], delay [%d]\n", speed, delay);
-    fprintf(stderr, "window_sz: %d\n", window_sz);
+/*    fprintf(stderr, "speed [%d], delay [%d]\n", speed, delay);*/
+/*    fprintf(stderr, "window_sz: %d\n", window_sz);*/
 
     /* Attempt to get stats of the file */
     struct stat buf;
@@ -155,7 +155,7 @@ void transmit(char* filename, int speed, int delay, double loss,
 
     /* Compute CRC of the handshake message */
     compcrc(t.crc.payload, CRC_LOAD_SZ, &t.crc.crc);
-    fprintf(stderr, "type: [%d] load [%s] len[%d] crc[%u]\n", t.msg.type, t.pack.load, t.msg.len, t.crc.crc);
+/*    fprintf(stderr, "type: [%d] load [%s] len[%d] crc[%u]\n", t.msg.type, t.pack.load, t.msg.len, t.crc.crc);*/
 
     /* Make sure the first frame containing filename and its size is recieved */
     while (not_sent) {
@@ -168,22 +168,25 @@ void transmit(char* filename, int speed, int delay, double loss,
             continue;
         }
 
-        fprintf(stderr, "crc_recieved: [%u]\n", ok->crc.crc);
+/*        fprintf(stderr, "crc_recieved: [%u]\n", ok->crc.crc);*/
         if (ok->msg.type == 1000 && ok->crc.crc == t.crc.crc)
             not_sent = 0;
-        fprintf(stderr, "ok-type: [%d]\n", ok->msg.type);
+/*        fprintf(stderr, "ok-type: [%d]\n", ok->msg.type);*/
         free(ok);
     }
 
+    /* Get window size from reciever */
     charge *win_rec = NULL;
     win_rec = (charge *)receive_message();
     if (!win_rec) {
-        fprintf(stderr, "Not recieved\n");
+        fprintf(stderr, "Window size not recieved\n");
     }
+    
     if (win_rec->msg.type != 2000)
         fprintf(stderr, "Error, window size from reciever expected\n");
+        
     const int win_recv = win_rec->pack.id;
-    fprintf(stderr, "win_recv: [%d]\n", win_recv);
+/*    fprintf(stderr, "win_recv: [%d]\n", win_recv);*/
     
     free(win_rec);
 
@@ -193,7 +196,7 @@ void transmit(char* filename, int speed, int delay, double loss,
     if (window_sz < 10)
         window_sz = 10;
 
-    fprintf(stderr, "win_sender recomputed: [%d]\n", window_sz);
+/*    fprintf(stderr, "win_sender recomputed: [%d]\n", window_sz);*/
 
 
     /* Transmit the content of the file 

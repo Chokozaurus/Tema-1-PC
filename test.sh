@@ -2,8 +2,8 @@
 
 SPEED=10
 DELAY=100
-LOSS=10
-CORRUPT=10
+LOSS=0
+CORRUPT=0
 WINDOW=0
 
 echo "Killing already opened processes"
