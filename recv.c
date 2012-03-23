@@ -92,11 +92,13 @@ int main(int argc, char** argv) {
         if (r->msg.type != 1){
             printf("Expecting filename and size message\n");
             //return -1;
+            //free(r);
             continue;
         }
 
         /* Acknowledge for the filename and size */
         charge ok;
+        memset(&ok, 0, sizeof(charge));
         fprintf(stderr, "sending ok_\n");
         compcrc( r->crc.payload, CRC_LOAD_SZ, &ok.crc.crc);
         fprintf(stderr, "sending crc_[%u]\n", ok.crc.crc);
@@ -141,6 +143,8 @@ int main(int argc, char** argv) {
             break;
         }
         else {
+            //if (r)
+            //    free(r);
             fprintf(stderr, "Handshake corrupt, or lost\nRecieving another\n");
             r = (charge *) receive_message();
         }
@@ -173,13 +177,18 @@ int main(int argc, char** argv) {
     unsigned int seq = 0;
     charge *buff = (charge *) calloc(window, sizeof(charge));
     charge nak, ack;
+    memset(&ack, 0, sizeof(charge));
+    memset(&nak, 0, sizeof(charge));
     
     nak.msg.type = 4;
     nak.msg.len = 2;
     ack.msg.type = 3;
     ack.msg.len = 2;
+    //r = NULL;
     
     while (fs > 0){
+        //if (r)
+        //    free(r);
         printf("Left to read from sender %d\n", fs);
         r = (charge *)receive_message();
         if (!r){
@@ -197,12 +206,12 @@ int main(int argc, char** argv) {
         unsigned short int crc_computed;
         compcrc(r->crc.payload, CRC_LOAD_SZ, &crc_computed);
         
-        //fprintf(stderr, "computed_crc: [%u]\trecieved_crc: [%u]\n", crc_computed, r->crc.crc);
+        fprintf(stderr, "computed_crc: [%u]\trecieved_crc: [%u]\n", crc_computed, r->crc.crc);
         if (r->crc.crc != crc_computed || (r->pack.id - seq) >= window) {
             send_message((msg *) &nak);
             continue;
         }
-        //fprintf(stderr, "r->pack.id: [%u]\n", r->pack.id);
+        fprintf(stderr, "r->pack.id: [%u]\n", r->pack.id);
         ack.pack.id = r->pack.id;
         send_message((msg *) &ack);
         
@@ -232,6 +241,7 @@ int main(int argc, char** argv) {
     }
     
     free(buff);
+    free(tabel);
 
     fprintf(stderr, "Before close-file recv\n");
     close (fd);

@@ -262,6 +262,8 @@ void transmit(char* filename, int speed, int delay, double loss,
             /* Case for NAK */
             case 4:
                 //fprintf(stderr, "NAK\n");
+                t_out:
+                fprintf(stderr, "NAK\tfront: [%u]\tcount: [%u]\n", front, count);
                 nkd = pop(buff, &front, &count, window_sz);
                 send_message((msg *) &nkd);
                 push(buff, nkd, front, &count, window_sz);
@@ -273,9 +275,9 @@ void transmit(char* filename, int speed, int delay, double loss,
             case 3:
                 //fprintf(stderr, "ACK\n");
                 ackd = pop(buff, &front, &count, window_sz);
-                //fprintf(stderr, "ackd-id: [%u]\t rr-id-cmp: [%u]\n", ackd.pack.id, rr->pack.id);
+                fprintf(stderr, "ackd-id: [%u]\t rr-id-cmp: [%u]\n", ackd.pack.id, rr->pack.id);
                 while ( ackd.pack.id != rr->pack.id ) {
-                    //fprintf(stderr, "rr-id: [%u]\tfront: [%u]\tcount: [%u]\n", ackd.pack.id, front, count);
+                    fprintf(stderr, "rr-id: [%u]\tfront: [%u]\tcount: [%u]\n", ackd.pack.id, front, count);
                     send_message((msg *) &ackd);
                     push(buff, ackd, front, &count, window_sz);
                     
@@ -289,6 +291,8 @@ void transmit(char* filename, int speed, int delay, double loss,
             default:
                 break;
             }
+        else
+            goto t_out;
     }
 
     fprintf(stderr, "Before close_file\n");
@@ -317,6 +321,7 @@ int main(int argc, char** argv) {
             get_corrupt(argv[4]) );
 
     fprintf(stderr, "Out of transmit\n");
-    //send_file(argv[5]);
+    
+    free(tabel);
     return 0;
 }
