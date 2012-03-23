@@ -13,12 +13,6 @@
 #define PCK_LOAD_SZ (PAYLOAD_SZ - (sizeof(int) + sizeof(short int)))
 #define CRC_LOAD_SZ (PAYLOAD_SZ + (sizeof(int) + sizeof(short int)))
 
-typedef struct _packet {
-    char load[PCK_LOAD_SZ];
-    unsigned int id;
-    word crc;
-} packet;
-
 typedef union _charge {
     /* The original struct */
     struct {
@@ -41,9 +35,10 @@ typedef union _charge {
     }crc;
 }charge;
 
+/* CRC Table */
 word *tabel;
 
-/* Compute crc table */
+/* Compute the CRC */
 void compcrc( char *data, int len, word *acum ){
     *acum = 0;
     int i;
@@ -59,7 +54,6 @@ int get_window(char* param) {
 }
 
 int main(int argc, char** argv) {
-    charge t;
     init(HOST, PORT);
     char filename[1400], filesize[1400];
     int fs;
@@ -67,13 +61,13 @@ int main(int argc, char** argv) {
     /* Read window parameter */
     int window = get_window( argv[1] );
     int win;
-    fprintf(stderr, "recv window : [%d]\n", window);
 
+    /* Compute the CRC table */
     tabel = tabelcrc(CRCCCITT);
 
     /* Receive handshake message
-    ****************************
-    */
+     ****************************
+     */
     charge *r = NULL;
     r = (charge *)receive_message();
 
@@ -91,17 +85,13 @@ int main(int argc, char** argv) {
 
         if (r->msg.type != 1){
             printf("Expecting filename and size message\n");
-            //return -1;
-            //free(r);
             continue;
         }
 
         /* Acknowledge for the filename and size */
         charge ok;
         memset(&ok, 0, sizeof(charge));
-        fprintf(stderr, "sending ok_\n");
         compcrc( r->crc.payload, CRC_LOAD_SZ, &ok.crc.crc);
-        fprintf(stderr, "sending crc_[%u]\n", ok.crc.crc);
 
         if (ok.crc.crc == r->crc.crc) {
             ok.msg.type = 1000;
@@ -135,16 +125,14 @@ int main(int argc, char** argv) {
             }
             fs = atoi(filesize);
 
+            /* Sender's window */
             win = r->pack.id;
-            fprintf(stderr, "sender window: [%d]\n", win);
 
             sprintf(fn,"recv_%s", filename);
             printf("Receiving file %s of size %d\n", fn, fs);
             break;
         }
         else {
-            //if (r)
-            //    free(r);
             fprintf(stderr, "Handshake corrupt, or lost\nRecieving another\n");
             r = (charge *) receive_message();
         }
@@ -159,23 +147,25 @@ int main(int argc, char** argv) {
     win_rec.pack.id = (unsigned int) window;    /* The actual info */
     send_message( (msg *)&win_rec );
 
+    /* Recompute window size */
     if ( window == 0 || window > win )
         window = win;
 
     if (window < 10)
         window = 10;
 
-    fprintf(stderr, "\nRecv window recomputed: [%d] \n", window);
 
     /* Open file to write into
-    **************************
-    */
+     *************************
+     */
     int fd = open(fn, O_WRONLY | O_CREAT, 0644);
     if (fd < 0) {
         perror("Failed to open file\n");
     }
 
-    /* Process information */
+    /* Process payload information to write into file
+     ************************************************
+     */
     unsigned int seq = 0;
     charge *buff = (charge *) calloc(window, sizeof(charge));
     charge nak, ack;
@@ -203,27 +193,25 @@ int main(int argc, char** argv) {
             return -1;
         }
 
-/*        fprintf(stderr, "rec-type: [%d]\t rec-len: [%d], rec-seq: [%u]\n",*/
-/*            r->msg.type, r->msg.len, r->pack.id);*/
         unsigned short int crc_computed;
         compcrc(r->crc.payload, CRC_LOAD_SZ, &crc_computed);
-        
-        fprintf(stderr, "computed_crc: [%u]\trecieved_crc: [%u]\n", crc_computed, r->crc.crc);
+
+        /* If not in window, or crc fails, send NAK */
         if (r->crc.crc != crc_computed || (r->pack.id - seq) >= window) {
             send_message((msg *) &nak);
             continue;
         }
-        fprintf(stderr, "r->pack.id: [%u]\n", r->pack.id);
+
+        /* Otherwise, send ACK and try to flush the buffer */
         ack.pack.id = r->pack.id;
         send_message((msg *) &ack);
         
         buff[r->pack.id % window] = *r;
         
         int i, j;
-        for (j = 0, i = seq % window; j < window && /*i < window &&*/ buff[i].msg.type != 0; j++/*i++*/) {
+        for (j = 0, i=seq % window; j < window && buff[i].msg.type != 0; j++) {
             write(fd, buff[i].pack.load, buff[i].msg.len);
             fs -= buff[i].msg.len;
-            //free(r);
             memset(&buff[i], 0, sizeof(charge));
             seq++;
             if (i == window - 1)
@@ -231,15 +219,6 @@ int main(int argc, char** argv) {
             else
                 i++;
         }
-/*        for (i = seq; i < window; i++) {*/
-/*            buff[i] = buff[seq + i];*/
-/*        }*/
-
-/*        memset(&t, 0, sizeof(t));*/
-/*        t.msg.type = 3;*/
-/*        sprintf(t.pack.load, "ACK");*/
-/*        t.msg.len = strlen(t.pack.load) + 1;*/
-/*        send_message((msg *)&t);*/
     }
     if (r)
         free(r);
@@ -247,8 +226,7 @@ int main(int argc, char** argv) {
     free(buff);
     free(tabel);
 
-    fprintf(stderr, "Before close-file recv\n");
     close (fd);
-    fprintf(stderr, "End recv\n");
+
     return 0;
 }

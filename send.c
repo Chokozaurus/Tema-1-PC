@@ -210,47 +210,22 @@ void transmit(char* filename, int speed, int delay, double loss,
     int flen = (int) buf.st_size;
 
     while (flen) {
-    //while ( (tr.msg.len = read(file, &tr.pack.load, PCK_LOAD_SZ) ) > 0 ) {
         if ( (tr.msg.len = read(file, &tr.pack.load, PCK_LOAD_SZ) ) > 0 ) {
-        tr.msg.type = 2;    /* Data */
-        tr.pack.id = seq;
-        compcrc(tr.crc.payload, CRC_LOAD_SZ, &tr.crc.crc);
+            tr.msg.type = 2;    /* Data */
+            tr.pack.id = seq;
+            compcrc(tr.crc.payload, CRC_LOAD_SZ, &tr.crc.crc);
 
-        /* Queue tests
-        ***************************************************
-        */
+            send_message((msg *) &tr);
+            push(buff, tr, front, &count, window_sz);
+            //fprintf(stderr, "push_nr: [%u]\tcount: [%u]\n", seq, count);
+            
+            seq++;
 
-/*        fprintf(stderr, "tr-id: [%u]\ttr-type: [%d]\ttr-len: [%d]\t tr-crc: [%d]\n", tr.pack.id,*/
-/*                tr.msg.type, tr.msg.len, tr.pack.crc);*/
-
-        //memcpy(&buff[seq % window_sz], &tr, sizeof(tr) );
-        
-/*        push(buff, tr, front, &count, window_sz);*/
-/*        fprintf(stderr, "\nTEST_QUEUE:\nfront: [%u]\tcount: [%u]\tbuff[front].pack.crc: [%u]\n",*/
-/*            front, count, buff[front].pack.crc);*/
-/*        charge test = pop(buff, &front, &count, window_sz);*/
-/*        fprintf(stderr, "\nTEST_QUEUE_POP:\nfront: [%u]\tcount: [%u]\ttest.pack.crc: [%u]\n",*/
-/*            front, count, test.pack.crc);*/
-/*            */
-        
-/*        fprintf(stderr, "buf-id: [%u]\tbuf-type: [%d]\tbuf-len: [%d]\t buf-crc: [%d]\n", buff[seq%window_sz].pack.id,*/
-/*                buff[seq%window_sz].msg.type, buff[seq%window_sz].msg.len, buff[seq%window_sz].pack.crc);*/
-
-        send_message((msg *) &tr);
-        push(buff, tr, front, &count, window_sz);
-        //fprintf(stderr, "push_nr: [%u]\tcount: [%u]\n", seq, count);
-        
-        seq++;
-        
-
-        //memset(&tr, 0, sizeof(charge));
-        
-
-        if ( count < window_sz && tr.msg.len == PCK_LOAD_SZ ) {
-            memset(&tr, 0, sizeof(charge));
-            continue;   /* Fulfill buffer */
-        }
-        
+            if ( count < window_sz && tr.msg.len == PCK_LOAD_SZ ) {
+                memset(&tr, 0, sizeof(charge));
+                continue;   /* Fulfill buffer */
+            }
+            
         }
         
         read:
@@ -261,12 +236,12 @@ void transmit(char* filename, int speed, int delay, double loss,
         
         //fprintf(stderr, "rr->pack.type: [%u]\n", rr->pack.type);
         if (rr != NULL)
-        switch (rr->pack.type) {
+            switch (rr->pack.type) {
             /* Case for NAK */
             case 4:
                 //fprintf(stderr, "NAK\n");
                 t_out:
-                fprintf(stderr, "NAK\tfront: [%u]\tcount: [%u]\n", front, count);
+/*                fprintf(stderr, "NAK\tfront: [%u]\tcount: [%u]\n", front, count);*/
                 nkd = pop(buff, &front, &count, window_sz);
                 send_message((msg *) &nkd);
                 push(buff, nkd, front, &count, window_sz);
@@ -278,9 +253,9 @@ void transmit(char* filename, int speed, int delay, double loss,
             case 3:
                 //fprintf(stderr, "ACK\n");
                 ackd = pop(buff, &front, &count, window_sz);
-                fprintf(stderr, "ackd-id: [%u]\t rr-id-cmp: [%u]\n", ackd.pack.id, rr->pack.id);
+/*                fprintf(stderr, "ackd-id: [%u]\t rr-id-cmp: [%u]\n", ackd.pack.id, rr->pack.id);*/
                 while ( ackd.pack.id != rr->pack.id ) {
-                    fprintf(stderr, "rr-id: [%u]\tfront: [%u]\tcount: [%u]\n", ackd.pack.id, front, count);
+/*                    fprintf(stderr, "rr-id: [%u]\tfront: [%u]\tcount: [%u]\n", ackd.pack.id, front, count);*/
                     send_message((msg *) &ackd);
                     push(buff, ackd, front, &count, window_sz);
                     
@@ -294,15 +269,15 @@ void transmit(char* filename, int speed, int delay, double loss,
             default:
                 break;
             }
-        else
-            goto t_out;
+            else
+                goto t_out;
     }
 
-    fprintf(stderr, "Before close_file\n");
+/*    fprintf(stderr, "Before close_file\n");*/
     close(file);
-    fprintf(stderr, "After close_file && before free\n");
+/*    fprintf(stderr, "After close_file && before free\n");*/
     free(buff);
-    fprintf(stderr, "After free\n");
+/*    fprintf(stderr, "After free\n");*/
 }
 
 int main(int argc, char** argv) {
@@ -315,15 +290,15 @@ int main(int argc, char** argv) {
 
     tabel = tabelcrc(CRCCCITT);
 
-    printf("Speed: %d\n", get_speed(argv[1]));
-    printf("Delay: %d\n", get_delay(argv[2]));
-    printf("Loss: %lf\n", get_loss(argv[3]));
-    printf("Corrupt: %lf\n", get_corrupt(argv[4]));
+/*    printf("Speed: %d\n", get_speed(argv[1]));*/
+/*    printf("Delay: %d\n", get_delay(argv[2]));*/
+/*    printf("Loss: %lf\n", get_loss(argv[3]));*/
+/*    printf("Corrupt: %lf\n", get_corrupt(argv[4]));*/
 
     transmit(argv[5], get_speed(argv[1]), get_delay(argv[2]), get_loss(argv[3]),
             get_corrupt(argv[4]) );
 
-    fprintf(stderr, "Out of transmit\n");
+/*    fprintf(stderr, "Out of transmit\n");*/
     
     free(tabel);
     return 0;

@@ -1,9 +1,9 @@
 #!/bin/bash
 
-SPEED=10
-DELAY=100
-LOSS=0
-CORRUPT=0
+SPEED=20
+DELAY=2000
+LOSS=20
+CORRUPT=20
 WINDOW=0
 
 echo "Killing already opened processes"

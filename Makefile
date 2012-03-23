@@ -12,4 +12,4 @@ recv: recv.o lib.o crc.o
 	gcc $(CFLAGS) -Wall -c $? 
 
 clean:
-	-rm -f send.o recv.o send recv 
+	-rm -f crc.o send.o recv.o send recv
