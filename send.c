@@ -79,7 +79,7 @@ void compcrc(char *data, int len, word *acum) {
 void push(charge *queue, charge elem, unsigned int front, unsigned int *count, 
         unsigned int max_size) {
 
-    if (*count >= 10) {
+    if (*count >= max_size) {
         fprintf(stderr, "Queue size exceded\n");
         exit(1);
     }
@@ -161,7 +161,7 @@ void transmit(char* filename, int speed, int delay, double loss,
     while (not_sent) {
         send_message((msg *)&t);
         fprintf(stderr, "Handshake message attempted\n");
-        ok = (charge *)receive_message();//_timeout(delay + 20);
+        ok = (charge *)receive_message_timeout(delay * 2 + 20);
 
         if(!ok) {
             fprintf(stderr, "Handshake message receive failure\n");
@@ -199,10 +199,14 @@ void transmit(char* filename, int speed, int delay, double loss,
     unsigned int seq = 0;
     unsigned int front = 0, count = 0;
     charge *buff = (charge *) calloc(window_sz, sizeof(charge));
+    fprintf(stderr, "window_sz: %d\n", window_sz);
     charge tr, *rr;
     memset(&tr, 0, sizeof(charge));
+    int flen = (int) buf.st_size;
 
-    while ( (tr.msg.len = read(file, &tr.pack.load, PCK_LOAD_SZ) ) > 0 ) {
+    while (flen) {
+    //while ( (tr.msg.len = read(file, &tr.pack.load, PCK_LOAD_SZ) ) > 0 ) {
+        if ( (tr.msg.len = read(file, &tr.pack.load, PCK_LOAD_SZ) ) > 0 ) {
         tr.msg.type = 2;    /* Data */
         tr.pack.id = seq;
         compcrc(tr.crc.payload, CRC_LOAD_SZ, &tr.crc.crc);
@@ -229,9 +233,10 @@ void transmit(char* filename, int speed, int delay, double loss,
 
         send_message((msg *) &tr);
         push(buff, tr, front, &count, window_sz);
-        //fprintf(stderr, "push_nr: [%u]\tcount: [%u]\n", seq, count);
+        fprintf(stderr, "push_nr: [%u]\tcount: [%u]\n", seq, count);
         
         seq++;
+        
 
         //memset(&tr, 0, sizeof(charge));
         
@@ -240,13 +245,17 @@ void transmit(char* filename, int speed, int delay, double loss,
             memset(&tr, 0, sizeof(charge));
             continue;   /* Fulfill buffer */
         }
-
+        
+        }
+        
+        read:
         /* Read ACK or NAK */
+        rr = NULL;
         rr = (charge *)receive_message_timeout(delay * 2 + 20);
         charge nkd, ackd;
         
         //fprintf(stderr, "rr->pack.type: [%u]\n", rr->pack.type);
-        
+        if (rr != NULL)
         switch (rr->pack.type) {
             /* Case for NAK */
             case 4:
@@ -254,12 +263,14 @@ void transmit(char* filename, int speed, int delay, double loss,
                 nkd = pop(buff, &front, &count, window_sz);
                 send_message((msg *) &nkd);
                 push(buff, nkd, front, &count, window_sz);
+                
+                goto read;
                 break;
             /* Case for ACK */
             case 3:
                 //fprintf(stderr, "ACK\n");
                 ackd = pop(buff, &front, &count, window_sz);
-                //fprintf(stderr, "ackd-id: [%u]\t rr-id-cmp: [%u]\n", ackd.pack.id, rr->pack.id);
+                fprintf(stderr, "ackd-id: [%u]\t rr-id-cmp: [%u]\n", ackd.pack.id, rr->pack.id);
                 while ( ackd.pack.id != rr->pack.id ) {
                     //fprintf(stderr, "rr-id: [%u]\tfront: [%u]\tcount: [%u]\n", ackd.pack.id, front, count);
                     send_message((msg *) &ackd);
@@ -268,6 +279,7 @@ void transmit(char* filename, int speed, int delay, double loss,
                     ackd = pop(buff, &front, &count, window_sz);
                     //exit(1);
                 }
+                flen -= ackd.pack.len;
                 //ackd = pop(buff, &front, &count, window_sz);
                 break;
             default:
@@ -290,56 +302,6 @@ void transmit(char* filename, int speed, int delay, double loss,
     fprintf(stderr, "After close_file && before free\n");
     free(buff);
     fprintf(stderr, "After free\n");
-}
-
-/* Transmit te file start-stop */
-void send_file(char* filename) {
-    msg t;
-
-    struct stat buf;
-    if ( stat(filename, &buf) < 0 ) {
-        perror("Stat failed");
-        return;
-    }
-
-    int fd = open(filename, O_RDONLY);
-
-    if (fd < 0) {
-        perror("Couldn't open file");
-        return;
-    }
-
-    /* Type 1: filename + filesize */
-    t.type = 1;
-    sprintf(t.payload, "%s\n%d\n", filename, (int) buf.st_size);
-    t.len = strlen(t.payload) + 1;
-
-    send_message(&t);
-
-    /* Type 2: The actual payload */
-    t.type = 2;
-    while ( (t.len = read(fd, &t.payload, 1400) ) > 0 ) {
-        //printf("Len is %d\n",t.len);
-        send_message(&t);
-
-        /* wait for ack, max 10 ms, then cycle - assume no packet loss */
-        msg* r = NULL;
-        while (!r) {
-            r = receive_message_timeout(10);
-            //printf("Received: %s\n",r->payload);
-
-            if (!r) {
-                /* there was an error on receive! */
-                perror("receive error");
-            }
-        }
-
-        /* wait for ack, blocking */
-        //msg* r = receive_message();
-        free(r);
-    }
-
-    close(fd);
 }
 
 int main(int argc, char** argv) {

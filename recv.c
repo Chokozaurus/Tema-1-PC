@@ -180,7 +180,7 @@ int main(int argc, char** argv) {
     ack.msg.len = 2;
     
     while (fs > 0){
-        printf("Left to read %d\n", fs);
+        printf("Left to read from sender %d\n", fs);
         r = (charge *)receive_message();
         if (!r){
             perror("Receive message");
@@ -198,7 +198,7 @@ int main(int argc, char** argv) {
         compcrc(r->crc.payload, CRC_LOAD_SZ, &crc_computed);
         
         fprintf(stderr, "computed_crc: [%u]\trecieved_crc: [%u]\n", crc_computed, r->crc.crc);
-        if (r->crc.crc != crc_computed) {
+        if (r->crc.crc != crc_computed || (r->pack.id - seq) >= window) {
             send_message((msg *) &nak);
             continue;
         }
@@ -206,9 +206,23 @@ int main(int argc, char** argv) {
         ack.pack.id = r->pack.id;
         send_message((msg *) &ack);
         
-        write(fd, r->pack.load, r->msg.len);
-        fs -= r->msg.len;
-        free(r);
+        buff[r->pack.id % window] = *r;
+        
+        int i, j;
+        for (j = 0, i = seq % window; j < window && /*i < window &&*/ buff[i].msg.type != 0; j++/*i++*/) {
+            write(fd, buff[i].pack.load, buff[i].msg.len);
+            fs -= buff[i].msg.len;
+            //free(r);
+            memset(&buff[i], 0, sizeof(charge));
+            seq++;
+            if (i == window - 1)
+                i = 0;
+            else
+                i++;
+        }
+/*        for (i = seq; i < window; i++) {*/
+/*            buff[i] = buff[seq + i];*/
+/*        }*/
 
 /*        memset(&t, 0, sizeof(t));*/
 /*        t.msg.type = 3;*/
