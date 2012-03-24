@@ -1,3 +1,9 @@
+/* Constantin Serban-Radoi 323CA
+ * Tema 1 Protocoale de Comunicatii
+ * Martie 2012
+ *
+ * Reciever
+ */
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
